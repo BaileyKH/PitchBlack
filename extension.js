@@ -1,13 +1,7 @@
-import { stat } from 'node:fs';
-import * as vscode from 'vscode'
 
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
+
 const vscode = require('vscode');
-require('dotenv').config()
-
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+require('dotenv').config();
 
 function generateRandomString(length) {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -39,6 +33,59 @@ async function authenticate() {
 	}
 }
 
+
+const http = require('node:http');
+
+const PORT = 8080
+
+function callbackServer() {
+	return new Promise((resolve, reject) => {
+        	const server = http.createServer((req, res) => {
+			const parsedUrl = new URL(req.url, 'http://127.0.0.1:8080')
+			let code = parsedUrl.searchParams.get('code')
+
+			resolve(code)
+			res.end('Authentication successful, please close this page')
+			server.close()
+			console.log('Closed Server')
+		})
+
+		server.listen(PORT, () => {
+			console.log(`Server running on port; ${PORT}`)
+		})
+    })
+
+}
+
+let access_token = '';
+let refresh_token = '';
+
+async function getToken(code) {
+	const body = new URLSearchParams({
+	code: code,
+	redirect_uri: 'http://127.0.0.1:8080/callback',
+	grant_type: 'authorization_code'
+	});
+
+	const authOptions = {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/x-www-form-urlencoded',
+			'Authorization': 'Basic ' + Buffer.from(process.env.SPOTIFY_CLIENT_ID + ':' + process.env.SPOTIFY_CLIENT_SECRET).toString('base64')
+		},
+		body: body.toString()
+	};
+
+	const response = await fetch('https://accounts.spotify.com/api/token', authOptions);
+	const data = await response.json();
+
+	access_token = data.access_token;
+	refresh_token = data.refresh_token;
+
+	return access_token
+
+}
+
 /**
  * @param {vscode.ExtensionContext} context
  */
@@ -51,12 +98,12 @@ function activate(context) {
 	// The command has been defined in the package.json file
 	// Now provide the implementation of the command with  registerCommand
 	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('pitchblack.startListening', function () {
-		// The code you place here will be executed every time your command is executed
+	const disposable = vscode.commands.registerCommand('pitchblack.startListening', async function () {
+		let codePromise = callbackServer()
+		await authenticate()
+		let code = await codePromise
+		getToken(code)
 
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from PitchBlack!');
-		authenticate()
 	});
 
 	context.subscriptions.push(disposable);
