@@ -83,8 +83,34 @@ async function getToken(code) {
 	access_token = data.access_token;
 	refresh_token = data.refresh_token;
 
-	return access_token
+	return { access_token: data.access_token, refresh_token: data.refresh_token }
 
+}
+
+async function refreshToken(currentRefreshToken) {
+	const body = new URLSearchParams({
+		refresh_token: currentRefreshToken,
+		grant_type: 'refresh_token'
+	});
+
+	const authOptions = {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/x-www-form-urlencoded',
+			'Authorization': 'Basic ' + (new Buffer.from(process.env.SPOTIFY_CLIENT_ID + ':' + process.env.SPOTIFY_CLIENT_SECRET).toString('base64'))
+		},
+		body: body.toString()
+	}
+
+	const response = await fetch('https://accounts.spotify.com/api/token', authOptions);
+	const data = await response.json();
+
+	access_token = data.access_token
+
+	if (data.refresh_token) {
+		refresh_token = data.refresh_token
+		return data.refresh_token
+	}
 }
 
 /**
@@ -105,22 +131,17 @@ async function activate(context) {
 		let codePromise = callbackServer()
 		await authenticate()
 		let code = await codePromise
-		let token = await getToken(code)
+		let { access_token: token, refresh_token: rToken } = await getToken(code)
 		await context.globalState.update('access_token', token)
-		let data = await spotify.getPlaylists(token)
-		if (provider._view) {
-			provider._view.webview.postMessage({ command: 'setPlaylists', playlists: data.items })
-		} else {
-			provider._playlists = data.items
-		}
+		await context.globalState.update('refresh_token', rToken)
+		refresh_token = rToken
+		provider._token = token
+		await provider.loadPlaylists()
 	} else {
 		let token = context.globalState.get('access_token')
-		let data = await spotify.getPlaylists(token)
-		if (provider._view) {
-			provider._view.webview.postMessage({ command: 'setPlaylists', playlists: data.items })
-		} else {
-			provider._playlists = data.items
-		}
+		refresh_token = context.globalState.get('refresh_token')
+		provider._token = token
+		await provider.loadPlaylists()
 	}
 }
 
@@ -129,7 +150,22 @@ class MyWebviewViewProvider {
         this._extensionUri = extensionUri;
     }
 
-    resolveWebviewView(webviewView, context, token) {
+	async loadPlaylists() {
+		let data = await spotify.getPlaylists(this._token)
+		if (data.error?.status === 401) {
+			await refreshToken(refresh_token)
+			this._token = access_token
+			data = await spotify.getPlaylists(this._token)
+		}
+
+		if (this._view) {
+			this._view.webview.postMessage({ command: 'setPlaylists', playlists: data.items })
+		} else {
+			this._playlists = data.items
+		}
+	}
+
+    async resolveWebviewView(webviewView, context, token) {
         this._view = webviewView;
 
         webviewView.webview.options = {
@@ -142,6 +178,18 @@ class MyWebviewViewProvider {
 		if (this._playlists) {
 			this._view.webview.postMessage({ command: 'setPlaylists', playlists: this._playlists })
 		}
+
+		webviewView.webview.onDidReceiveMessage(async message => {
+			switch(message.command) {
+				case 'getPlaylistItems':
+					let result = await spotify.getPlaylistItems(this._token, message.playlistId)
+					this._view.webview.postMessage({ command: 'setSongs', songs: result })
+					break
+				default:
+					return '<h3>Currently no songs to display</h3>'
+			}
+		})
+
     }
 
     _getHtmlForWebview(webview) {
@@ -150,16 +198,39 @@ class MyWebviewViewProvider {
             <html lang="en">
             <body>
 				<div id="playlists"></div>
+				<div id="song-list" style="display:none"></div>
+				<div id="currently-playing" style="display:none"></div>
 				<script>
+					const vscode = acquireVsCodeApi()
+					function showView(viewId) {
+						document.getElementById('playlists').style.display = 'none'
+						document.getElementById('song-list').style.display = 'none'
+						document.getElementById('currently-playing').style.display = 'none'
+
+						document.getElementById(viewId).style.display = 'block'
+					}
+
+					function selectPlaylist(playlistId) {
+						showView('song-list')
+    					vscode.postMessage({ command: 'getPlaylistItems', playlistId: playlistId })
+					}
+
 					window.addEventListener('message', async event => {
-						const message = event.data;
+						const message = event.data
+
 						switch(message.command) {
 							case 'setPlaylists':
 								document.getElementById('playlists').innerHTML = message.playlists.map(item => {
-									return '<img src="' + item.images[0].url + '"/><h3>' + item.name + '</h3>'
+									return '<div data-id="' + item.id + '" onclick="selectPlaylist(this.dataset.id)"><img src="' + item.images[0].url + '"/><h3>' + item.name + '</h3></div>'
 								}).join('')
 
 								break
+							case 'setSongs':
+								document.getElementById('song-list').innerHTML = message.songs.items.map(item => {
+									return '<div><img src="' + item.item.album.images[0].url + '"/><h3>' + item.item.name + '</h3></div>'
+								}).join('')
+
+								break								
 							default:
 								return '<h3>Currently no content<h3>'
 						}

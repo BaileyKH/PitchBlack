@@ -1,4 +1,3 @@
-import { start } from "node:repl"
 
 
 async function getPlaylists(access_token) {
