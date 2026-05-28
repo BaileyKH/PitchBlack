@@ -2,6 +2,7 @@
 
 const vscode = require('vscode');
 require('dotenv').config();
+const spotify = require('./spotify');
 
 function generateRandomString(length) {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -89,27 +90,86 @@ async function getToken(code) {
 /**
  * @param {vscode.ExtensionContext} context
  */
-function activate(context) {
+async function activate(context) {
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
 	console.log('Congratulations, your extension "pitchblack" is now active!');
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with  registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('pitchblack.startListening', async function () {
+	const provider = new MyWebviewViewProvider(context.extensionUri);
+
+    // Register the provider with the unique ID from package.json
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider('pitchblack.myWebviewView', provider)
+    );
+
+	if (context.globalState.get('access_token') === undefined) {
 		let codePromise = callbackServer()
 		await authenticate()
 		let code = await codePromise
-		getToken(code)
-
-	});
-
-	context.subscriptions.push(disposable);
+		let token = await getToken(code)
+		await context.globalState.update('access_token', token)
+		let data = await spotify.getPlaylists(token)
+		if (provider._view) {
+			provider._view.webview.postMessage({ command: 'setPlaylists', playlists: data.items })
+		} else {
+			provider._playlists = data.items
+		}
+	} else {
+		let token = context.globalState.get('access_token')
+		let data = await spotify.getPlaylists(token)
+		if (provider._view) {
+			provider._view.webview.postMessage({ command: 'setPlaylists', playlists: data.items })
+		} else {
+			provider._playlists = data.items
+		}
+	}
 }
 
-// This method is called when your extension is deactivated
+class MyWebviewViewProvider {
+    constructor(extensionUri) {
+        this._extensionUri = extensionUri;
+    }
+
+    resolveWebviewView(webviewView, context, token) {
+        this._view = webviewView;
+
+        webviewView.webview.options = {
+            enableScripts: true,
+            localResourceRoots: [this._extensionUri]
+        };
+
+        webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+
+		if (this._playlists) {
+			this._view.webview.postMessage({ command: 'setPlaylists', playlists: this._playlists })
+		}
+    }
+
+    _getHtmlForWebview(webview) {
+        return `
+            <!DOCTYPE html>
+            <html lang="en">
+            <body>
+				<div id="playlists"></div>
+				<script>
+					window.addEventListener('message', async event => {
+						const message = event.data;
+						switch(message.command) {
+							case 'setPlaylists':
+								document.getElementById('playlists').innerHTML = message.playlists.map(item => {
+									return '<img src="' + item.images[0].url + '"/><h3>' + item.name + '</h3>'
+								}).join('')
+
+								break
+							default:
+								return '<h3>Currently no content<h3>'
+						}
+					});
+				</script>
+            </body>
+            </html>`;
+    }
+}
+
 function deactivate() {}
 
 module.exports = {

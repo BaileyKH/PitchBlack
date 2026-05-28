@@ -1,10 +1,11 @@
 {
   "name": "pitchblack",
+  "publisher": "pitchblack",
   "displayName": "PitchBlack",
   "description": "PitchBlack lets you listen to your favorite songs without ever leaving your editor, because great code and great music go hand in hand.",
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.120.0"
+    "vscode": "^1.119.0"
   },
   "categories": [
     "Other"
@@ -17,7 +18,16 @@
         "command": "pitchblack.startListening",
         "title": "PitchBlack"
       }
-    ]
+    ],
+    "views": {
+      "explorer": [
+        {
+          "type": "webview",
+          "id": "pitchblack.myWebviewView",
+          "name": "PitchBlack"
+        }
+      ]
+    }
   },
   "scripts": {
     "lint": "eslint .",
@@ -27,7 +37,7 @@
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "@types/vscode": "^1.120.0",
+    "@types/vscode": "^1.119.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "eslint": "^9.39.3"
