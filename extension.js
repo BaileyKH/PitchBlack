@@ -185,6 +185,15 @@ class MyWebviewViewProvider {
 					let result = await spotify.getPlaylistItems(this._token, message.playlistId)
 					this._view.webview.postMessage({ command: 'setSongs', songs: result })
 					break
+				case 'startPlayback':
+					await spotify.startPlayback(this._token, message.uri)
+					this._view.webview.postMessage({ 
+						command: 'setSong', 
+						songName: message.songName,
+						artistName: message.artistName,
+						image: message.image
+					})
+					break
 				default:
 					return '<h3>Currently no songs to display</h3>'
 			}
@@ -215,6 +224,17 @@ class MyWebviewViewProvider {
     					vscode.postMessage({ command: 'getPlaylistItems', playlistId: playlistId })
 					}
 
+					function selectSong(uri, songName, artistName, image) {
+						showView('currently-playing')
+						vscode.postMessage({ 
+							command: 'startPlayback',
+							uri: uri,
+							songName: songName,
+							artistName: artistName,
+							image: image
+						})
+					}
+
 					window.addEventListener('message', async event => {
 						const message = event.data
 
@@ -227,8 +247,15 @@ class MyWebviewViewProvider {
 								break
 							case 'setSongs':
 								document.getElementById('song-list').innerHTML = message.songs.items.map(item => {
-									return '<div><img src="' + item.item.album.images[0].url + '"/><h3>' + item.item.name + '</h3></div>'
+									return '<div data-uri="' + item.item.uri + '" data-name="' + item.item.name + '" data-artist="' + item.item.artists[0].name + '" data-image="' + item.item.album.images[0].url + '" onclick="selectSong(this.dataset.uri, this.dataset.name, this.dataset.artist, this.dataset.image)"><img src="' + item.item.album.images[0].url + '"/><h3>' + item.item.name + '</h3></div>'
 								}).join('')
+
+								break
+							case 'setSong':
+								document.getElementById('currently-playing').innerHTML = 
+									'<img src="' + message.image + '"/>' +
+									'<h3>' + message.songName + '</h3>' +
+									'<p>' + message.artistName + '</p>'
 
 								break								
 							default:

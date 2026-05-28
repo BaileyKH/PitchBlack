@@ -36,11 +36,14 @@ async function startPlayback(access_token, uri) {
             'Authorization': 'Bearer ' + access_token
         },
         body: JSON.stringify({
-            context_uri: uri
+            uris: [uri]
         })
     }
 
     const res = await fetch(`https://api.spotify.com/v1/me/player/play`, headers)
+
+    if (res.status === 204) return { success: true }
+
     const data = await res.json()
 
     return data
