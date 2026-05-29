@@ -187,13 +187,17 @@ class MyWebviewViewProvider {
 					break
 				}
 				case 'startPlayback':
-					await spotify.startPlayback(this._token, message.uri)
+					await spotify.startPlayback(this._token, message.uri, message.playlistId)
 					this._view.webview.postMessage({ 
 						command: 'setSong', 
 						songName: message.songName,
 						artistName: message.artistName,
-						image: message.image
+						image: message.image,
+						playlistId: message.playlistId
 					})
+					break
+				case 'resumePlayback':
+					await spotify.resumePlayback(this._token)
 					break
 				case 'skipNext': {
 					await spotify.skipNext(this._token)
@@ -242,6 +246,8 @@ class MyWebviewViewProvider {
 				<div id="currently-playing" style="display:none"></div>
 				<script>
 					const vscode = acquireVsCodeApi()
+					let currentPlaylistId = null
+					let isPlaying = true
 					function showView(viewId) {
 						document.getElementById('playlists').style.display = 'none'
 						document.getElementById('song-list').style.display = 'none'
@@ -251,8 +257,9 @@ class MyWebviewViewProvider {
 					}
 
 					function selectPlaylist(playlistId) {
+						currentPlaylistId = playlistId
 						showView('song-list')
-    					vscode.postMessage({ command: 'getPlaylistItems', playlistId: playlistId })
+						vscode.postMessage({ command: 'getPlaylistItems', playlistId: playlistId })
 					}
 
 					function selectSong(uri, songName, artistName, image) {
@@ -262,9 +269,25 @@ class MyWebviewViewProvider {
 							uri: uri,
 							songName: songName,
 							artistName: artistName,
-							image: image
+							image: image,
+							playlistId: currentPlaylistId
 						})
 					}
+
+					function skipPrevious() { vscode.postMessage({ command: 'skipPrevious' }) }
+
+					function pausePlayback() {
+						if (isPlaying) {
+							vscode.postMessage({ command: 'pausePlayback' })
+							isPlaying = false
+						} else {
+							vscode.postMessage({ command: 'resumePlayback' })
+							isPlaying = true
+						}
+					}
+
+					function skipNext() { vscode.postMessage({ command: 'skipNext' }) }
+					function setVolume(val) { vscode.postMessage({ command: 'setVolume', volume: val }) }
 
 					window.addEventListener('message', async event => {
 						const message = event.data
@@ -286,8 +309,8 @@ class MyWebviewViewProvider {
 								document.getElementById('currently-playing').innerHTML = 
 									'<img src="' + message.image + '"/>' +
 									'<h3>' + message.songName + '</h3>' +
-									'<p>' + message.artistName + '</p>'
-
+									'<p>' + message.artistName + '</p>' +
+									'<div><button onclick="skipPrevious()">Prev</button><button onclick="pausePlayback()">Play/pause</button><button onclick="skipNext()">Next</button><label for="volume">Volume:</label><input type="range" id="volume" name="volume" min="0" max="100" value="50" oninput="setVolume(this.value)"></div>'
 								break								
 							default:
 								return '<h3>Currently no content<h3>'

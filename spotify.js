@@ -28,7 +28,7 @@ async function getPlaylistItems(access_token, playlistId) {
     return data
 }
 
-async function startPlayback(access_token, uri) {
+async function startPlayback(access_token, uri, playlistId) {
     const headers = {
         method: 'PUT',
         headers: {
@@ -36,8 +36,11 @@ async function startPlayback(access_token, uri) {
             'Authorization': 'Bearer ' + access_token
         },
         body: JSON.stringify({
-            uris: [uri]
-        })
+            context_uri: `spotify:playlist:${playlistId}`,
+            offset: {
+                    uri: uri
+                }
+            })
     }
 
     const res = await fetch(`https://api.spotify.com/v1/me/player/play`, headers)
@@ -46,6 +49,23 @@ async function startPlayback(access_token, uri) {
 
     const data = await res.json()
 
+    return data
+}
+
+async function resumePlayback(access_token) {
+    const headers = {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + access_token
+        }
+    }
+
+    const res = await fetch(`https://api.spotify.com/v1/me/player/play`, headers)
+
+    if (res.ok) return { success: true }
+
+    const data = await res.json()
     return data
 }
 
@@ -76,7 +96,7 @@ async function skipNext(access_token) {
 
     const res = await fetch(`https://api.spotify.com/v1/me/player/next`, headers)
 
-    if (res.status === 204) return { success: true }
+    if (res.ok) return { success: true }
 
     const data = await res.json()
 
@@ -94,10 +114,10 @@ async function skipPrevious(access_token) {
 
     const res = await fetch(`https://api.spotify.com/v1/me/player/previous`, headers)
 
-    if (res.status === 204) return { success: true }
+    if (res.ok) return { success: true }
 
     const data = await res.json()
-
+    
     return data
 }
 
@@ -111,10 +131,10 @@ async function pausePlayback(access_token) {
 
     const res = await fetch(`https://api.spotify.com/v1/me/player/pause`, headers)
 
-    if (res.status === 204) return { success: true }
+    if (res.ok) return { success: true }
 
     const data = await res.json()
-
+    
     return data
 }
 
@@ -139,6 +159,7 @@ module.exports = {
     getPlaylists,
     getPlaylistItems,
     startPlayback,
+    resumePlayback,
     currentlyPlaying,
     skipNext,
     skipPrevious,
