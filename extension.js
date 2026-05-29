@@ -181,10 +181,11 @@ class MyWebviewViewProvider {
 
 		webviewView.webview.onDidReceiveMessage(async message => {
 			switch(message.command) {
-				case 'getPlaylistItems':
+				case 'getPlaylistItems': {
 					let result = await spotify.getPlaylistItems(this._token, message.playlistId)
 					this._view.webview.postMessage({ command: 'setSongs', songs: result })
 					break
+				}
 				case 'startPlayback':
 					await spotify.startPlayback(this._token, message.uri)
 					this._view.webview.postMessage({ 
@@ -193,6 +194,36 @@ class MyWebviewViewProvider {
 						artistName: message.artistName,
 						image: message.image
 					})
+					break
+				case 'skipNext': {
+					await spotify.skipNext(this._token)
+					await new Promise(resolve => setTimeout(resolve, 500))
+					let nextSong = await spotify.currentlyPlaying(this._token)
+					this._view.webview.postMessage({ 
+						command: 'setSong', 
+						songName: nextSong.item.name,
+						artistName: nextSong.item.artists[0].name,
+						image: nextSong.item.album.images[0].url
+					})
+					break
+				}
+				case 'skipPrevious': {
+					await spotify.skipPrevious(this._token)
+					await new Promise(resolve => setTimeout(resolve, 500))
+					let prevSong = await spotify.currentlyPlaying(this._token)
+					this._view.webview.postMessage({ 
+						command: 'setSong', 
+						songName: prevSong.item.name,
+						artistName: prevSong.item.artists[0].name,
+						image: prevSong.item.album.images[0].url
+					})
+					break
+				}
+				case 'pausePlayback':
+					await spotify.pausePlayback(this._token)
+					break
+				case 'setVolume':
+					await spotify.setVolume(this._token, message.volume)
 					break
 				default:
 					return '<h3>Currently no songs to display</h3>'
