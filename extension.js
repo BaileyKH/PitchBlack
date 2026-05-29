@@ -124,8 +124,12 @@ async function activate(context) {
 
     // Register the provider with the unique ID from package.json
     context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider('pitchblack.myWebviewView', provider)
-    );
+    vscode.window.registerWebviewViewProvider('pitchblack.myWebviewView', provider, {
+        webviewOptions: {
+            retainContextWhenHidden: true
+        }
+    })
+)
 
 	if (context.globalState.get('access_token') === undefined) {
 		let codePromise = callbackServer()
@@ -237,9 +241,17 @@ class MyWebviewViewProvider {
     }
 
     _getHtmlForWebview(webview) {
+
+		const cssUri = webview.asWebviewUri(
+        	vscode.Uri.joinPath(this._extensionUri, 'pitchblack.css')
+    	)
+
         return `
             <!DOCTYPE html>
             <html lang="en">
+			<head>
+            	<link rel="stylesheet" href="${cssUri}">
+        	</head>
             <body>
 				<div id="playlists"></div>
 				<div id="song-list" style="display:none"></div>
@@ -248,6 +260,7 @@ class MyWebviewViewProvider {
 					const vscode = acquireVsCodeApi()
 					let currentPlaylistId = null
 					let isPlaying = true
+
 					function showView(viewId) {
 						document.getElementById('playlists').style.display = 'none'
 						document.getElementById('song-list').style.display = 'none'
@@ -289,6 +302,20 @@ class MyWebviewViewProvider {
 					function skipNext() { vscode.postMessage({ command: 'skipNext' }) }
 					function setVolume(val) { vscode.postMessage({ command: 'setVolume', volume: val }) }
 
+					function checkCompact() {
+						const height = window.innerHeight
+						const playing = document.getElementById('currently-playing')
+						if (playing) {
+							if (height < 260) {
+								playing.classList.add('compact')
+							} else {
+								playing.classList.remove('compact')
+							}
+						}
+					}
+
+					window.addEventListener('resize', checkCompact)
+
 					window.addEventListener('message', async event => {
 						const message = event.data
 
@@ -307,11 +334,27 @@ class MyWebviewViewProvider {
 								break
 							case 'setSong':
 								document.getElementById('currently-playing').innerHTML = 
-									'<img src="' + message.image + '"/>' +
-									'<h3>' + message.songName + '</h3>' +
-									'<p>' + message.artistName + '</p>' +
-									'<div><button onclick="skipPrevious()">Prev</button><button onclick="pausePlayback()">Play/pause</button><button onclick="skipNext()">Next</button><label for="volume">Volume:</label><input type="range" id="volume" name="volume" min="0" max="100" value="50" oninput="setVolume(this.value)"></div>'
-								break								
+									'<div class="bg-blur" style="background-image: url(' + message.image + ')"></div>' +
+									'<div class="bg-overlay"></div>' +
+									'<div class="content-wrapper">' +
+										'<div class="album-art-wrapper">' +
+											'<img class="album-art" src="' + message.image + '"/>' +
+										'</div>' +
+										'<div class="song-info">' +
+											'<div class="song-title">' + message.songName + '</div>' +
+											'<div class="artist-name">' + message.artistName + '</div>' +
+										'</div>' +
+										'<div class="controls">' +
+											'<button onclick="skipPrevious()">Prev</button>' +
+											'<button class="play-btn" onclick="pausePlayback()">⏸</button>' +
+											'<button onclick="skipNext()">Next</button>' +
+										'</div>' +
+										'<div class="volume-wrapper">' +
+											'<label>Vol</label>' +
+											'<input type="range" min="0" max="100" value="50" oninput="setVolume(this.value)"/>' +
+										'</div>' +
+									'</div>'
+								break						
 							default:
 								return '<h3>Currently no content<h3>'
 						}
