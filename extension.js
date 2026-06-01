@@ -301,15 +301,23 @@ class MyWebviewViewProvider {
 
 					function skipNext() { vscode.postMessage({ command: 'skipNext' }) }
 					function setVolume(val) { vscode.postMessage({ command: 'setVolume', volume: val }) }
+					function goToPlaylists() { showView('playlists') }
+					function goToSongList() { showView('song-list') }
 
 					function checkCompact() {
 						const height = window.innerHeight
 						const playing = document.getElementById('currently-playing')
+						const backPlaylist = document.getElementById('back-to-playlists')
+						const backSong = document.getElementById('back-to-songs')
 						if (playing) {
 							if (height < 260) {
 								playing.classList.add('compact')
+								backPlaylist.classList.add('compact')
+								backSong.classList.add('compact')
 							} else {
 								playing.classList.remove('compact')
+								backPlaylist.classList.remove('compact')
+								backSong.classList.remove('compact')
 							}
 						}
 					}
@@ -327,7 +335,7 @@ class MyWebviewViewProvider {
 
 								break
 							case 'setSongs':
-								document.getElementById('song-list').innerHTML = message.songs.items.map(item => {
+								document.getElementById('song-list').innerHTML = '<p id="back-to-playlists" onclick="goToPlaylists()">← Playlists</p>' + message.songs.items.map(item => {
 									return '<div data-uri="' + item.item.uri + '" data-name="' + item.item.name + '" data-artist="' + item.item.artists[0].name + '" data-image="' + item.item.album.images[0].url + '" onclick="selectSong(this.dataset.uri, this.dataset.name, this.dataset.artist, this.dataset.image)"><img src="' + item.item.album.images[0].url + '"/><h3>' + item.item.name + '</h3></div>'
 								}).join('')
 
@@ -337,6 +345,7 @@ class MyWebviewViewProvider {
 									'<div class="bg-blur" style="background-image: url(' + message.image + ')"></div>' +
 									'<div class="bg-overlay"></div>' +
 									'<div class="content-wrapper">' +
+										'<p id="back-to-songs" onclick="goToSongList()">← Back</p>' +
 										'<div class="album-art-wrapper">' +
 											'<img class="album-art" src="' + message.image + '"/>' +
 										'</div>' +
