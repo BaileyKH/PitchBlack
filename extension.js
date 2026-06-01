@@ -197,7 +197,8 @@ class MyWebviewViewProvider {
 						songName: message.songName,
 						artistName: message.artistName,
 						image: message.image,
-						playlistId: message.playlistId
+						playlistId: message.playlistId,
+						spotifyUrl: message.spotifyUrl  // this is missing!
 					})
 					break
 				case 'resumePlayback':
@@ -233,6 +234,9 @@ class MyWebviewViewProvider {
 				case 'setVolume':
 					await spotify.setVolume(this._token, message.volume)
 					break
+				case 'openSpotify':
+					vscode.env.openExternal(vscode.Uri.parse(message.url))
+					break
 				default:
 					return '<h3>Currently no songs to display</h3>'
 			}
@@ -260,6 +264,7 @@ class MyWebviewViewProvider {
 					const vscode = acquireVsCodeApi()
 					let currentPlaylistId = null
 					let isPlaying = true
+					let currentSpotifyUrl = null
 
 					function showView(viewId) {
 						document.getElementById('playlists').style.display = 'none'
@@ -275,7 +280,7 @@ class MyWebviewViewProvider {
 						vscode.postMessage({ command: 'getPlaylistItems', playlistId: playlistId })
 					}
 
-					function selectSong(uri, songName, artistName, image) {
+					function selectSong(uri, songName, artistName, image, spotifyUrl) {
 						showView('currently-playing')
 						vscode.postMessage({ 
 							command: 'startPlayback',
@@ -283,7 +288,8 @@ class MyWebviewViewProvider {
 							songName: songName,
 							artistName: artistName,
 							image: image,
-							playlistId: currentPlaylistId
+							playlistId: currentPlaylistId,
+							spotifyUrl: spotifyUrl
 						})
 					}
 
@@ -293,9 +299,11 @@ class MyWebviewViewProvider {
 						if (isPlaying) {
 							vscode.postMessage({ command: 'pausePlayback' })
 							isPlaying = false
+							document.querySelector('.play-btn').textContent = '▶'
 						} else {
 							vscode.postMessage({ command: 'resumePlayback' })
 							isPlaying = true
+							document.querySelector('.play-btn').textContent = '⏸'
 						}
 					}
 
@@ -303,6 +311,9 @@ class MyWebviewViewProvider {
 					function setVolume(val) { vscode.postMessage({ command: 'setVolume', volume: val }) }
 					function goToPlaylists() { showView('playlists') }
 					function goToSongList() { showView('song-list') }
+					function openInSpotify(url) {
+						vscode.postMessage({ command: 'openSpotify', url: url })
+					}
 
 					function checkCompact() {
 						const height = window.innerHeight
@@ -336,11 +347,12 @@ class MyWebviewViewProvider {
 								break
 							case 'setSongs':
 								document.getElementById('song-list').innerHTML = '<p id="back-to-playlists" onclick="goToPlaylists()">← Playlists</p>' + message.songs.items.map(item => {
-									return '<div data-uri="' + item.item.uri + '" data-name="' + item.item.name + '" data-artist="' + item.item.artists[0].name + '" data-image="' + item.item.album.images[0].url + '" onclick="selectSong(this.dataset.uri, this.dataset.name, this.dataset.artist, this.dataset.image)"><img src="' + item.item.album.images[0].url + '"/><h3>' + item.item.name + '</h3></div>'
+									return '<div data-uri="' + item.item.uri + '" data-name="' + item.item.name + '" data-artist="' + item.item.artists[0].name + '" data-image="' + item.item.album.images[0].url + '" data-url="' + item.item.external_urls.spotify + '" onclick="selectSong(this.dataset.uri, this.dataset.name, this.dataset.artist, this.dataset.image, this.dataset.url)"><img src="' + item.item.album.images[0].url + '"/><h3>' + item.item.name + '</h3></div>'
 								}).join('')
 
 								break
 							case 'setSong':
+								currentSpotifyUrl = message.spotifyUrl
 								document.getElementById('currently-playing').innerHTML = 
 									'<div class="bg-blur" style="background-image: url(' + message.image + ')"></div>' +
 									'<div class="bg-overlay"></div>' +
@@ -350,7 +362,7 @@ class MyWebviewViewProvider {
 											'<img class="album-art" src="' + message.image + '"/>' +
 										'</div>' +
 										'<div class="song-info">' +
-											'<div class="song-title">' + message.songName + '</div>' +
+											'<div class="song-title" onclick="openInSpotify(currentSpotifyUrl)">' + message.songName + '</div>' +
 											'<div class="artist-name">' + message.artistName + '</div>' +
 										'</div>' +
 										'<div class="controls">' +

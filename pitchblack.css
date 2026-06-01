@@ -228,10 +228,15 @@ body {
     font-weight: 500;
     color: var(--text-primary);
     letter-spacing: -0.02em;
+    cursor: pointer;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
+}
+
+#currently-playing .song-title:hover {
+    color: #1cb451;
 }
 
 #currently-playing .artist-name {
